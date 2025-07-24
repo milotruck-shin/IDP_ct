@@ -2,11 +2,31 @@ import cv2 as cv
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator
 import serial
+import socket
+import sys
+import pickle
+import numpy as np
+import struct
 
 fontScale = 1.5
 fontFace = cv.FONT_HERSHEY_PLAIN
 fontColor = (0, 255, 0)
 fontThickness = 1
+
+
+payload_size = struct.calcsize("L")
+data=bytearray()
+
+
+server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+server_socket.bind(('192.168.1.100',9999)) #server IP address and port
+server_socket.listen(10)
+
+#accept client connection
+client_socket, client_address = server_socket.accept()
+print(f"[*] Accepted connection from {client_address}")
+
+
 
 def ObjectDetection(frame):
     results=model.track(source=frame, exist_ok=True, conf = 0.5, imgsz=640, stream = True)
@@ -36,20 +56,34 @@ model = YOLO(r"/home/sunwayrobocon/Documents/robocon25/best.engine")  #load the 
 
 
 if __name__ == '__main__':
-    cap = cv.VideoCapture(0)
-    cap.set(cv.CAP_PROP_FPS,60)
 
-    if cap is None:
-        print("Camera is not initialised")
-        exit()
-
-    try:
-        while True:
-            ret, frame = cap.read()
+    while True:
+        try:
+            while len(data) < payload_size:  #read first 4 bytes
+                chunk = client_socket.recv(4096)
+                if not chunk: 
+                    break
+                data.extend(chunk)  #add the received chunks to data bytearray
             
-            if not ret:
-                print("No frames received")
+            if len(data) < payload_size: #if no more chunks of 4096 to be received, go here and check if received data is correct size, meaning header is complete or not
                 break
+                    
+            packet_msg_sz =  data[:payload_size]    #for the first 4 bytes of data, thats the header containing packet size
+            msg_sz = struct.unpack("L", packet_msg_sz)[0]   #unpack the bytestream
+            data = data[payload_size:]  # Remove header, this the the first bytes of the data to be received
+            
+            #now data size is not 4 bytes anymore, got space to read until 4 bytes
+            while len(data) < msg_sz:
+                chunk = client_socket.recv(4096)
+                if not chunk: 
+                    break
+                data.extend(chunk)
+                
+            if len(data) < msg_sz: break  # Incomplete frame
+
+            # Decode JPEG frame
+            frame = cv.imdecode(np.frombuffer(data[:msg_sz], dtype=np.uint8), cv.IMREAD_COLOR)
+            data = data[msg_sz:]  # Clear buffer for next frame
             
             ObjectDetection(frame)
             
@@ -57,7 +91,10 @@ if __name__ == '__main__':
             
             if cv.waitKey(1)==ord('q'):
                 break
-    
-    finally:
-        cap.release()
-        cv.destroyAllWindows()
+        
+        finally:
+
+        
+        
+        
+        
