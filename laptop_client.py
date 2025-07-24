@@ -17,14 +17,8 @@ fontThickness = 1
 payload_size = struct.calcsize("L")
 data=bytearray()
 
-
-server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-server_socket.bind(('192.168.1.100',9999)) #server IP address and port
-server_socket.listen(10)
-
-#accept client connection
-client_socket, client_address = server_socket.accept()
-print(f"[*] Accepted connection from {client_address}")
+video_client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+video_client_socket.connect(('192.168.1.100',9999)) #server IP address and port
 
 
 
@@ -56,11 +50,10 @@ model = YOLO(r"/home/sunwayrobocon/Documents/robocon25/best.engine")  #load the 
 
 
 if __name__ == '__main__':
-
     while True:
         try:
             while len(data) < payload_size:  #read first 4 bytes
-                chunk = client_socket.recv(4096)
+                chunk = video_client_socket.recv(4096)
                 if not chunk: 
                     break
                 data.extend(chunk)  #add the received chunks to data bytearray
@@ -74,7 +67,7 @@ if __name__ == '__main__':
             
             #now data size is not 4 bytes anymore, got space to read until 4 bytes
             while len(data) < msg_sz:
-                chunk = client_socket.recv(4096)
+                chunk = video_client_socket.recv(4096)
                 if not chunk: 
                     break
                 data.extend(chunk)
@@ -93,6 +86,7 @@ if __name__ == '__main__':
                 break
         
         finally:
+            break
 
         
         
