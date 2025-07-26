@@ -14,11 +14,11 @@ fontColor = (0, 255, 0)
 fontThickness = 1
 
 
-payload_size = struct.calcsize("L")
+payload_size = struct.calcsize("!I")
 data=bytearray()
 
 video_client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-video_client_socket.connect(('192.168.1.100',9999)) #server IP address and port
+video_client_socket.connect(('192.168.196.58',8000)) #server IP address and port
 
 
 
@@ -62,7 +62,7 @@ if __name__ == '__main__':
                 break
                     
             packet_msg_sz =  data[:payload_size]    #for the first 4 bytes of data, thats the header containing packet size
-            msg_sz = struct.unpack("L", packet_msg_sz)[0]   #unpack the bytestream
+            msg_sz = struct.unpack("!I", packet_msg_sz)[0]   #unpack the bytestream
             data = data[payload_size:]  # Remove header, this the the first bytes of the data to be received
             
             #now data size is not 4 bytes anymore, got space to read until 4 bytes
@@ -82,11 +82,12 @@ if __name__ == '__main__':
             
             cv.imshow('Object Detection',frame)
             
-            if cv.waitKey(1)==ord('q'):
+            if cv.waitKey(1)& 0xFF==ord('q'):
                 break
         
         finally:
-            break
+         video_client_socket.close()
+         cv.destroyAllWindows()
 
         
         
