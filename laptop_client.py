@@ -1,25 +1,28 @@
 import cv2 as cv
 from ultralytics import YOLO
 from ultralytics.utils.plotting import Annotator
-import serial
 import socket
 import sys
-import pickle
+# import pickle
 import numpy as np
 import struct
+import threading
+from queue import Queue
+
+
 
 fontScale = 1.5
 fontFace = cv.FONT_HERSHEY_PLAIN
 fontColor = (0, 255, 0)
 fontThickness = 1
 
-
-payload_size = struct.calcsize("!I")
-data=bytearray()
-
+stream_active = threading.Event()
 video_client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 video_client_socket.connect(('192.168.196.58',8000)) #server IP address and port
 
+frame_queue=Queue(maxsize=5)
+
+model = YOLO(r"C:\Users\kohji\runs\detect\train3\weights\best.pt")  #load the YOLO model
 
 
 def ObjectDetection(frame):
@@ -46,19 +49,22 @@ def ObjectDetection(frame):
             cv.putText(frame, id, (int(x1)+30, int(y1)-10), fontFace, fontScale, fontColor, fontThickness, cv.LINE_AA)
 
 
-model = YOLO(r"/home/sunwayrobocon/Documents/robocon25/best.engine")  #load the YOLO model
-
-
-if __name__ == '__main__':
-    while True:
-        try:
+def client_t():
+    try:
+        payload_size = struct.calcsize("!I")
+        data = bytearray()
+        while True:
             while len(data) < payload_size:  #read first 4 bytes
+                
                 chunk = video_client_socket.recv(4096)
+                print("received chunks")
                 if not chunk: 
+                    print("no chunks")
                     break
                 data.extend(chunk)  #add the received chunks to data bytearray
             
             if len(data) < payload_size: #if no more chunks of 4096 to be received, go here and check if received data is correct size, meaning header is complete or not
+                print("incorrect size")
                 break
                     
             packet_msg_sz =  data[:payload_size]    #for the first 4 bytes of data, thats the header containing packet size
@@ -72,24 +78,54 @@ if __name__ == '__main__':
                     break
                 data.extend(chunk)
                 
-            if len(data) < msg_sz: break  # Incomplete frame
+            if len(data) < msg_sz: 
+                print("incomplete frame")
+                break  # Incomplete frame
 
             # Decode JPEG frame
             frame = cv.imdecode(np.frombuffer(data[:msg_sz], dtype=np.uint8), cv.IMREAD_COLOR)
+            print("Frame received!")
             data = data[msg_sz:]  # Clear buffer for next frame
+
+            if frame is None:
+                print("Decoded frame is none, skipping.")
+                continue
+            
+            if frame_queue.full():
+                frame_queue.get_nowait()
+            frame_queue.put_nowait(frame.copy())
+            
+    except Exception as e :
+        print(f"Client thread error: {str(e)}")
+        
+    finally:
+        print("closing socket")
+        video_client_socket.close()
+
+
+def detection_t():
+    try:
+        while True:
+            frame = frame_queue.get(timeout=0.3)
             
             ObjectDetection(frame)
-            
             cv.imshow('Object Detection',frame)
             
-            if cv.waitKey(1)& 0xFF==ord('q'):
+            if cv.waitKey(1) & 0xFF == ord('q'):
                 break
-        
-        finally:
-         video_client_socket.close()
-         cv.destroyAllWindows()
+            
+    except Exception as e:
+        print(f"Detection thread error {str(e)}")
+    
+    finally:
+        cv.destroyAllWindows()
 
-        
-        
-        
-        
+
+if __name__ == '__main__':
+
+    client_thread = threading.Thread(target=client_t, daemon=True)
+    yolo_thread = threading.Thread(target=detection_t, daemon=True)
+    client_thread.start()
+    yolo_thread.start()
+    client_thread.join()
+    yolo_thread.join()
