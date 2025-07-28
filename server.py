@@ -4,6 +4,7 @@ import socket
 import struct
 from picamera2 import Picamera2
 import threading
+import serial
 
 picam2=Picamera2()
 picam2.configure(picam2.create_preview_configuration(main={"format": 'RGB888', "size":(640, 480)}))
@@ -16,6 +17,14 @@ server_socket.listen(10)
 command_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 command_socket.bind(('192.168.196.58', 8001))
 command_socket.listen(10)
+
+esp32 = serial.Serial(
+    port = '/dev/ttyUSB0',
+    baudrate =115200,
+    bytesize=serial.EIGHTBITS,
+    parity=serial.PARITY_NONE,
+    stopbits=serial.STOPBITS_ONE,
+    timeout=5)
 
 def receive_t():
     payload_size = struct.calcsize("!I")
@@ -49,8 +58,10 @@ def receive_t():
                 break  # Incomplete frame
             
             try:
-                command = message.decode('utf-8')
+                
+                command = message[:recv_packet_sz].decode('utf-8')
                 print(f"Received message: {str(command)}")
+                message = message[recv_packet_sz:]
                 
             except UnicodeDecodeError:
                 print("Failed to decode message")
