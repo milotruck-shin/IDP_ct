@@ -10,7 +10,6 @@ import threading
 from queue import Queue
 
 
-
 fontScale = 1.5
 fontFace = cv.FONT_HERSHEY_PLAIN
 fontColor = (0, 255, 0)
@@ -20,10 +19,29 @@ stream_active = threading.Event()
 video_client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 video_client_socket.connect(('192.168.196.58',8000)) #server IP address and port
 
+
+command_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+command_socket.connect(('192.168.196.58', 8001))
+
+
 frame_queue=Queue(maxsize=5)
 
 model = YOLO(r"C:\Users\kohji\runs\detect\train3\weights\best.pt")  #load the YOLO model
 
+
+# c_header = struct.calcsize("!I") #returns an int
+
+def switch(a):
+    if a is None:
+        return 0
+    else:
+        msg = str(a)
+        
+        command = msg.encode()
+        c_header = struct.pack("!I", len(command)) 
+        command_socket.sendall(c_header + command)	
+        return 1
+        
 
 def ObjectDetection(frame):
     results=model.track(source=frame, exist_ok=True, conf = 0.5, imgsz=640, stream = True)
@@ -35,18 +53,27 @@ def ObjectDetection(frame):
             
             if r.boxes.id is not None:
                 id = f"ID: {int(box.id[0])}"  # Correct way to get tracking ID
+                detection = switch(int(box.id[0]))
+                                
             else:
                 id = "ID: N/A"
                 
             conf = float(box.conf[0])  # Confidence score
             #c = box.cls
             label = f"{conf:.2f}"
+            
 
             # Draw bounding box
             #annotator.box_label(b, model.names[int(c)])
             cv.rectangle(frame,pt1=(int(x1), int(y1)), pt2=(int(x2), int(y2)), color=(0, 255, 128), thickness = 3, lineType=cv.LINE_8 )
             cv.putText(frame, label, (int(x1), int(y1)-10), fontFace, fontScale, fontColor, fontThickness, cv.LINE_AA)
-            cv.putText(frame, id, (int(x1)+30, int(y1)-10), fontFace, fontScale, fontColor, fontThickness, cv.LINE_AA)
+            cv.putText(frame, id, (int(x1)+50, int(y1)-10), fontFace, fontScale, fontColor, fontThickness, cv.LINE_AA)
+            
+            if detection:
+                print("Detected, sent to Pi")
+            else:
+                print("None detected, none to Pi")
+    
 
 
 def client_t():
@@ -57,7 +84,6 @@ def client_t():
             while len(data) < payload_size:  #read first 4 bytes
                 
                 chunk = video_client_socket.recv(4096)
-                print("received chunks")
                 if not chunk: 
                     print("no chunks")
                     break
@@ -68,7 +94,7 @@ def client_t():
                 break
                     
             packet_msg_sz =  data[:payload_size]    #for the first 4 bytes of data, thats the header containing packet size
-            msg_sz = struct.unpack("!I", packet_msg_sz)[0]   #unpack the bytestream
+            msg_sz = struct.unpack("!I", packet_msg_sz)[0]   #unpack the bytestream of the header byte
             data = data[payload_size:]  # Remove header, this the the first bytes of the data to be received
             
             #now data size is not 4 bytes anymore, got space to read until 4 bytes
