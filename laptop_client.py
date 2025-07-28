@@ -53,7 +53,7 @@ def ObjectDetection(frame):
             
             if r.boxes.id is not None:
                 id = f"ID: {int(box.id[0])}"  # Correct way to get tracking ID
-                detection = switch(int(box.id)[0])
+                detection = switch(int(box.id[0]))
                                 
             else:
                 id = "ID: N/A"
@@ -73,6 +73,7 @@ def ObjectDetection(frame):
                 print("Detected, sent to Pi")
             else:
                 print("None detected, none to Pi")
+    
 
 
 def client_t():
@@ -83,7 +84,6 @@ def client_t():
             while len(data) < payload_size:  #read first 4 bytes
                 
                 chunk = video_client_socket.recv(4096)
-                print("received chunks")
                 if not chunk: 
                     print("no chunks")
                     break
