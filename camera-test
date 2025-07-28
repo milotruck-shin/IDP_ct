@@ -1,0 +1,23 @@
+#!/usr/bin/python3
+
+import time
+from picamera2 import Picamera2, Preview
+from picamera2.encoders import H264Encoder
+
+picam0=Picamera2(0)
+picam1=Picamera2(1)
+
+picam0.configure(picam0.create_preview_configuration())
+picam1.configure(picam1.create_preview_configuration())
+
+picam0.start_preview(Preview.QTGL, x=100,y=300,width=400,height=300)
+picam1.start_preview(Preview.QTGL, x=500,y=300,width=400,height=300)
+
+picam0.start()
+picam1.start()
+
+time.sleep(2)
+
+#encoder0=H264Encoder(1000000)
+#encoder1=H264Encoder(1000000)
+
