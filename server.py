@@ -15,10 +15,11 @@ picam0.configure(picam0.create_preview_configuration(main=config))
 picam1.configure(picam1.create_preview_configuration(main=config))
 # picam0.start_preview(Preview.QTGL, x=100,y=300,width=400,height=300)
 # picam1.start_preview(Preview.QTGL, x=500,y=300,width=400,height=300)
-picam0.start()
-picam1.start()
+
 picam0.start_preview()  # Start the preview (opens a window)
 picam1.start_preview()  # Start the preview (opens a window)
+picam0.start()
+picam1.start()
 
 server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -26,18 +27,19 @@ server_socket.bind(('192.168.196.58',8000)) #server IP address and port
 server_socket.listen(10)
 
 command_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+command_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 command_socket.bind(('192.168.196.58', 8001))
 command_socket.listen(10)
 
 shutdown_event=threading.Event()
 
-esp32 = serial.Serial(
-    port = '/dev/ttyUSB0',
-    baudrate =115200,
-    bytesize=serial.EIGHTBITS,
-    parity=serial.PARITY_NONE,
-    stopbits=serial.STOPBITS_ONE,
-    timeout=5)
+#esp32 = serial.Serial(
+#    port = '/dev/ttyUSB0',
+#    baudrate =115200,
+#    bytesize=serial.EIGHTBITS,
+#    parity=serial.PARITY_NONE,
+#    stopbits=serial.STOPBITS_ONE,
+#    timeout=5)
 
 def receive_t():
     payload_size = struct.calcsize("!I")
@@ -128,5 +130,5 @@ if __name__ == '__main__':
     livestream_thread=threading.Thread(target=livestream_t, daemon=True)
     command_thread.start()
     livestream_thread.start()
-    command_thread.join(timeout=1)
-    livestream_thread.join(timeout=1)
+    command_thread.join()
+    livestream_thread.join()
