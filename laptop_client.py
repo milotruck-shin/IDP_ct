@@ -26,7 +26,7 @@ command_socket.connect(('192.168.196.58', 8001))
 
 frame_queue=Queue(maxsize=5)
 
-model = YOLO(r"C:\Users\kohji\runs\detect\train3\weights\best.pt")  #load the YOLO model
+model = YOLO(r"C:\Users\kohji\Downloads\tomato.pt")  #load the YOLO model
 
 
 # c_header = struct.calcsize("!I") #returns an int
@@ -45,16 +45,19 @@ def switch(a):
 
 def ObjectDetection(frame):
     results=model.track(source=frame, exist_ok=True, conf = 0.5, imgsz=640, stream = True)
-    
+    class_names = model.names
+
     for r in results:
         boxes = r.boxes
         for box in boxes:
-            x1, y1, x2, y2 = box.xyxy[0] 
+            x1, y1, x2, y2 = box.xyxy[0].tolist()
             
             if r.boxes.id is not None:
-                id = f"ID: {int(box.id[0])}"  # Correct way to get tracking ID
-                detection = switch(int(box.id[0]))
-                                
+                id = f"ID: {int(box.id[0])}" 
+                class_name = class_names[int(box.cls[0])]
+                detection = switch(int(box.cls[0]))
+                
+        
             else:
                 id = "ID: N/A"
                 
@@ -67,7 +70,7 @@ def ObjectDetection(frame):
             #annotator.box_label(b, model.names[int(c)])
             cv.rectangle(frame,pt1=(int(x1), int(y1)), pt2=(int(x2), int(y2)), color=(0, 255, 128), thickness = 3, lineType=cv.LINE_8 )
             cv.putText(frame, label, (int(x1), int(y1)-10), fontFace, fontScale, fontColor, fontThickness, cv.LINE_AA)
-            cv.putText(frame, id, (int(x1)+50, int(y1)-10), fontFace, fontScale, fontColor, fontThickness, cv.LINE_AA)
+            cv.putText(frame, class_name, (int(x1)+60, int(y1)-10), fontFace, fontScale, fontColor, fontThickness, cv.LINE_AA)
             
             if detection:
                 print("Detected, sent to Pi")
@@ -132,17 +135,21 @@ def client_t():
 def detection_t():
     try:
         while True:
-            frame = frame_queue.get(timeout=0.3)
+            try:
+                frame = frame_queue.get(timeout=0.3)
+                
+                ObjectDetection(frame)
+                cv.imshow('Object Detection',frame)
+                
+                if cv.waitKey(1) & 0xFF == ord('q'):
+                    break
             
-            ObjectDetection(frame)
-            cv.imshow('Object Detection',frame)
-            
-            if cv.waitKey(1) & 0xFF == ord('q'):
-                break
+            except Queue.Empty:
+                continue
             
     except Exception as e:
-        print(f"Detection thread error {str(e)}")
-    
+        print(f"Detection thread error: {type(e).__name__}: {str(e)}")
+                
     finally:
         cv.destroyAllWindows()
 
